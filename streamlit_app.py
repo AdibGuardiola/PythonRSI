@@ -29,30 +29,48 @@ if not TOKEN or not CHAT_ID:
 # ==========================================
 # TRADING LOGIC FUNCTIONS
 # ==========================================
-def get_klines(symbol="PAXGUSDT", interval="15m", limit=200):
-    """Fetch candlestick data from Binance."""
-    url = "https://api.binance.com/api/v3/klines"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "limit": limit
-    }
+import yfinance as yf
+
+# ... [imports remain the same] ...
+
+# ==========================================
+# TRADING LOGIC FUNCTIONS
+# ==========================================
+def get_klines(symbol="GC=F", interval="15m", period="5d"):
+    """Fetch candlestick data from Yahoo Finance (Gold Futures)."""
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period, interval=interval)
         
-        # DataFrame columns: Open Time, Open, High, Low, Close, Volume, ...
-        df = pd.DataFrame(data, columns=['time', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'qav', 'num_trades', 'taker_base_vol', 'taker_quote_vol', 'ignore'])
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        if df.empty:
+            return pd.DataFrame()
+            
+        # Reset index to get 'Date'/'Datetime' as a column
+        df = df.reset_index()
         
-        # Convert numeric columns to floats
-        cols = ['open', 'high', 'low', 'close']
-        df[cols] = df[cols].astype(float)
+        # Standardize column names depending on YF version (Datetime/Date -> time)
+        col_map = {col: col.lower() for col in df.columns}
+        df = df.rename(columns=col_map)
         
+        # Ensure we have time and ohlc
+        if 'datetime' in df.columns:
+            df = df.rename(columns={'datetime': 'time'})
+        elif 'date' in df.columns:
+            df = df.rename(columns={'date': 'time'})
+            
+        # Ensure UTC-naive for compatibility if needed, or keep aware
+        # Streamlit/Plotly handles aware, but for simplicity:
+        df['time'] = pd.to_datetime(df['time'])
+        
+        required_cols = ['open', 'high', 'low', 'close']
+        for col in required_cols:
+            if col not in df.columns:
+                print(f"Missing column: {col}")
+                return pd.DataFrame()
+                
         return df
     except Exception as e:
-        print(f"Error getting klines: {e}")
+        print(f"Error getting klines from YF: {e}")
         return pd.DataFrame()
 
 def calculate_metrics(df):
@@ -99,7 +117,7 @@ def check_market(token, chat_id, last_alert_state):
     """
     df = get_klines()
     if df.empty:
-        return last_alert_state, "Error fetching data from Binance", pd.DataFrame()
+        return last_alert_state, "Error fetching data from Yahoo Finance", pd.DataFrame()
         
     df = calculate_metrics(df)
     last_row = df.iloc[-1]

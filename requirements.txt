@@ -4,4 +4,4 @@ plotly
 requests
 pandas
 numpy
-alphabet-detector
+yfinance
