@@ -1,0 +1,6 @@
+echo streamlit > requirements.txt
+echo yfinance >> requirements.txt
+echo pandas >> requirements.txt
+echo numpy >> requirements.txt
+echo plotly >> requirements.txt
+echo streamlit-autorefresh >> requirements.txt
