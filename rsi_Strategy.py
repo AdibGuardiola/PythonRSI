@@ -70,6 +70,7 @@ def build_indicator(df: pd.DataFrame, rsi_period: int, fast_ma: int, slow_ma: in
     data["RSI_SLOW"] = data["RSI"].ewm(span=slow_ma, adjust=False).mean()
     data["TREND_FAST_MA"] = data["Close"].rolling(trend_fast_ma).mean()
     data["TREND_SLOW_MA"] = data["Close"].rolling(trend_slow_ma).mean()
+    data["EMA200"] = data["Close"].ewm(span=200, adjust=False).mean()
     
     # Volume calculation
     # Forex volume on Yahoo is tick volume, but still useful for relative activity
@@ -178,6 +179,18 @@ def make_chart(data: pd.DataFrame, interval: str, adx_threshold: int, show_label
             mode="lines",
             line=dict(color="#39FF14", width=3), # Verde fluorescente, un poco más gruesa
             name="Trend Slow MA",
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=data["EMA200"],
+            mode="lines",
+            line=dict(color="#00FFFF", width=2, dash="dash"),
+            name="EMA 200",
         ),
         row=1,
         col=1,
@@ -389,6 +402,27 @@ with st.sidebar:
     st.markdown("---")
     st.write("Parámetros clásicos del Asesor MT5:")
     st.code("RSI=14 | Fast=2 | Slow=20 | P_Fast=10 | P_Slow=35")
+
+try:
+    us10y_data = download_fx_data("^TNX", period, interval)
+    if not us10y_data.empty:
+        us10y_last = float(us10y_data['Close'].iloc[-1])
+        us10y_prev = float(us10y_data['Close'].iloc[-2]) if len(us10y_data) > 1 else us10y_last
+        st.metric("US 10Y (Bono Tesoro 10 años)", f"{us10y_last:.3f}%", f"{us10y_last - us10y_prev:+.3f}%")
+        if "d" in interval.lower() or "mo" in interval.lower() or "wk" in interval.lower():
+            fmt_us10y = "%d-%b<br>%Y"
+        else:
+            fmt_us10y = "%H:%M<br>%d-%b"
+        us10y_slice = us10y_data.tail(250)
+        us10y_index_str = us10y_slice.index.strftime(fmt_us10y)
+        us10y_chart = go.Figure(go.Scatter(x=us10y_index_str, y=us10y_slice["Close"], mode='lines', line=dict(color='#FF4500', width=2)))
+        us10y_chart.update_layout(template="plotly_dark", height=220, margin=dict(l=20, r=20, t=20, b=20), xaxis_rangeslider_visible=False)
+        num_ticks_us10y = 8
+        step_us10y = max(len(us10y_slice) // num_ticks_us10y, 1)
+        us10y_chart.update_xaxes(type="category", showticklabels=True, tickmode="linear", dtick=step_us10y, tickangle=0)
+        st.plotly_chart(us10y_chart, use_container_width=True)
+except Exception:
+    pass
 
 try:
     dxy_data = download_fx_data("DX-Y.NYB", period, interval)
